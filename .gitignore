@@ -1,0 +1,13 @@
+# HBuilder 打包缓存（包含证书密码等敏感信息）
+unpackage/
+
+# 备份数据
+backend/backups/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/

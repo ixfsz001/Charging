@@ -1,0 +1,100 @@
+{
+  "id": "5208174",
+  "name": "充电助手",
+  "font_family": "iconfont",
+  "css_prefix_text": "icon-",
+  "description": "",
+  "glyphs": [
+    {
+      "icon_id": "34452982",
+      "name": "flashlight-auto",
+      "font_class": "flashlight-auto",
+      "unicode": "e83a",
+      "unicode_decimal": 59450
+    },
+    {
+      "icon_id": "34452983",
+      "name": "calculator",
+      "font_class": "calculator",
+      "unicode": "e83b",
+      "unicode_decimal": 59451
+    },
+    {
+      "icon_id": "34453044",
+      "name": "search-for-similar",
+      "font_class": "search-for-similar",
+      "unicode": "e842",
+      "unicode_decimal": 59458
+    },
+    {
+      "icon_id": "34453049",
+      "name": "search",
+      "font_class": "search",
+      "unicode": "e843",
+      "unicode_decimal": 59459
+    },
+    {
+      "icon_id": "34452760",
+      "name": "business-icon-ali-clould",
+      "font_class": "business-icon-ali-clould",
+      "unicode": "e822",
+      "unicode_decimal": 59426
+    },
+    {
+      "icon_id": "34452878",
+      "name": "message-reply-template",
+      "font_class": "message-reply-template",
+      "unicode": "e82e",
+      "unicode_decimal": 59438
+    },
+    {
+      "icon_id": "34452990",
+      "name": "delete",
+      "font_class": "delete",
+      "unicode": "e839",
+      "unicode_decimal": 59449
+    },
+    {
+      "icon_id": "34453038",
+      "name": "right",
+      "font_class": "right",
+      "unicode": "e840",
+      "unicode_decimal": 59456
+    },
+    {
+      "icon_id": "34453058",
+      "name": "settings",
+      "font_class": "settings",
+      "unicode": "e841",
+      "unicode_decimal": 59457
+    },
+    {
+      "icon_id": "34453200",
+      "name": "document-conversion",
+      "font_class": "document-conversion",
+      "unicode": "e855",
+      "unicode_decimal": 59477
+    },
+    {
+      "icon_id": "34453216",
+      "name": "home",
+      "font_class": "home",
+      "unicode": "e858",
+      "unicode_decimal": 59480
+    },
+    {
+      "icon_id": "34453261",
+      "name": "quick",
+      "font_class": "quick",
+      "unicode": "e864",
+      "unicode_decimal": 59492
+    },
+    {
+      "icon_id": "34453368",
+      "name": "行业报告",
+      "font_class": "hangyebaogao",
+      "unicode": "e881",
+      "unicode_decimal": 59521
+    }
+  ]
+}

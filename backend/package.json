@@ -1,0 +1,9 @@
+{
+  "name": "charging-backup-server",
+  "version": "1.0.0",
+  "description": "充电记录备份服务器",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  }
+}

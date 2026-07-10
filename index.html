@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="format-detection" content="telephone=no">
+  <meta name="theme-color" content="#ff7000">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <title>充电助手APP</title>
+  <link rel="stylesheet" href="./iconfont/iconfont.css">
+  <link rel="stylesheet" href="./css/main.css">
+</head>
+
+<body>
+  <!-- 顶部下滑提示组件 -->
+  <div id="top-toast" class="top-toast"></div>
+
+  <div class="app-container">
+    <!-- 主内容区域 -->
+    <div class="main-content">
+      <!-- 1. 首页（添加记录） -->
+      <div id="add-record" class="page active">
+        <div class="page-header">
+          <h1>充电助手</h1>
+        </div>
+        <div class="form-container">
+          <!-- AI识别区域 -->
+          <div class="ai-recognize-section">
+            <button type="button" id="ai-recognize-btn" class="ai-recognize-btn">
+              <span class="iconfont icon-search-for-similar"></span>
+              <span>AI智能图片识别</span>
+            </button>
+            <input type="file" id="ai-image-input" accept="image/*" capture="environment" style="display: none;">
+          </div>
+          <form id="record-form">
+            <div class="form-group">
+              <label>开始时间</label>
+              <div class="time-input-group">
+                <input type="datetime-local" id="start-time" name="startTime" required>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>结束时间</label>
+              <div class="time-input-group">
+                <input type="datetime-local" id="end-time" name="endTime" required>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>充电站名称</label>
+              <input type="text" id="station-name" name="stationName" placeholder="输入站点名称" required>
+              <div id="station-suggestions" class="suggestions-list"></div>
+            </div>
+            <div class="form-group">
+              <label>充电类型</label>
+              <button type="button" id="charge-type-btn" class="charge-type-btn fast-charge"
+                data-value="fast">直流快充 （DC）</button>
+            </div>
+            <div class="form-group">
+              <label>充电量 (kWh)</label>
+              <input type="number" id="charge-amount" name="chargeAmount" step="0.01" min="0" required
+                placeholder="0.00">
+            </div>
+            <div class="form-group">
+              <label>最终价格 (元)</label>
+              <input type="number" id="final-price" name="finalPrice" step="0.01" min="0" required placeholder="0.00">
+            </div>
+            <div class="form-group">
+              <label>优惠金额 (元)</label>
+              <input type="number" id="discount-amount" name="discountAmount" step="0.01" min="0" placeholder="0.00">
+            </div>
+            <button type="submit" class="btn-submit">保存记录</button>
+            <button type="button" id="reset-form-btn" class="btn-reset">重置内容</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- 2. 记录页（查看和筛选） -->
+      <div id="view-records" class="page">
+        <div class="page-header">
+          <h1>记录</h1>
+        </div>
+        <div class="search-container">
+          <span class="iconfont icon-search search-icon"></span>
+          <input type="text" id="record-search" class="search-input" placeholder="搜索充电站名称...">
+        </div>
+        <div class="filter-group">
+          <button class="filter-btn active" data-type="all">全部</button>
+          <button class="filter-btn" data-type="fast">直流快充</button>
+          <button class="filter-btn" data-type="slow">交流慢充</button>
+          <button class="filter-btn" data-type="time">自定义</button>
+        </div>
+        <div class="records-container">
+          <div id="records-list"></div>
+          <div class="empty-state" id="empty-records" style="display: none;">
+            <p class="empty-state-text">暂无充电记录</p>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- 3. 统计页（数据分析） -->
+      <div id="statistics" class="page">
+        <div class="page-header">
+          <h1>统计</h1>
+        </div>
+        <div class="time-selector">
+          <button class="time-btn active" data-range="week">本周</button>
+          <button class="time-btn" data-range="month">本月</button>
+          <button class="time-btn" data-range="lastMonth">上月</button>
+          <button class="time-btn" data-range="year">本年</button>
+          <button class="time-btn" data-range="custom">自定义</button>
+        </div>
+        <div class="stats-container">
+
+          <!-- 综合数据卡片 -->
+          <div class="stats-overview-card">
+            <div class="stats-overview-date" id="stats-date">加载中...</div>
+            <div class="stats-overview-main">
+              <div class="stats-overview-item">
+                <span class="stats-overview-label">充电花费</span>
+                <span class="stats-overview-value" id="total-amount">￥0.00</span>
+              </div>
+              <div class="stats-overview-item">
+                <span class="stats-overview-label">充电度数</span>
+                <span class="stats-overview-value"><span id="total-energy2">0.0</span><span class="stats-overview-sub-unit">kWh</span></span>
+              </div>
+            </div>
+            <div class="stats-overview-sub">
+              <div class="stats-overview-sub-item">
+                <span class="stats-overview-sub-value"><span id="total-count">0</span><span class="stats-overview-sub-unit">次</span></span>
+                <span class="stats-overview-sub-label">充电次数</span>
+              </div>
+              <div class="stats-overview-sub-item">
+                <span class="stats-overview-sub-value"><span id="total-duration">0</span><span class="stats-overview-sub-unit">小时</span></span>
+                <span class="stats-overview-sub-label">充电时长</span>
+              </div>
+              <div class="stats-overview-sub-item">
+                <span class="stats-overview-sub-value" id="avg-price">￥0.00</span>
+                <span class="stats-overview-sub-label">平均电价</span>
+              </div>
+              <div class="stats-overview-sub-item">
+                <span class="stats-overview-sub-value accent" id="total-discount2">￥0.00</span>
+                <span class="stats-overview-sub-label">累计节省</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 充电类型占比 -->
+          <div class="stats-chart">
+            <div class="stats-chart-header">
+              <span class="stats-chart-title">充电类型占比</span>
+              <div class="chart-legend-inline">
+                <div class="chart-legend-item">
+                  <span class="chart-legend-dot fast-dot"></span>
+                  <span class="chart-legend-label">快充</span>
+                  <span class="chart-legend-value fast-color" id="fast-percentage">0%</span>
+                </div>
+                <div class="chart-legend-item">
+                  <span class="chart-legend-dot slow-dot"></span>
+                  <span class="chart-legend-label">慢充</span>
+                  <span class="chart-legend-value slow-color" id="slow-percentage">0%</span>
+                </div>
+              </div>
+            </div>
+            <div class="charge-chart">
+              <div class="chart-segment fast-charge-segment" id="fast-charge-segment"></div>
+              <div class="chart-segment slow-charge-segment" id="slow-charge-segment"></div>
+              <div class="chart-segment empty-charge-segment" id="empty-charge-segment"></div>
+            </div>
+          </div>
+
+          <!-- 快充慢充详细数据 -->
+          <div class="stats-detail-grid">
+            <div class="stats-detail-card fast-card">
+              <div class="stats-detail-card-header">
+                <span class="stats-detail-card-dot fast-dot"></span>
+                <span class="stats-detail-card-title">直流快充</span>
+              </div>
+              <div class="stats-detail-row">
+                <span class="stats-detail-label">电量</span>
+                <span class="stats-detail-value fast-color" id="fast-energy-detail">0.0 kWh</span>
+              </div>
+              <div class="stats-detail-row">
+                <span class="stats-detail-label">费用</span>
+                <span class="stats-detail-value fast-color" id="fast-cost">￥0.00</span>
+              </div>
+              <div class="stats-detail-row">
+                <span class="stats-detail-label">均价</span>
+                <span class="stats-detail-value fast-color" id="fast-avg-price">￥0.00/kWh</span>
+              </div>
+            </div>
+            <div class="stats-detail-card slow-card">
+              <div class="stats-detail-card-header">
+                <span class="stats-detail-card-dot slow-dot"></span>
+                <span class="stats-detail-card-title">交流慢充</span>
+              </div>
+              <div class="stats-detail-row">
+                <span class="stats-detail-label">电量</span>
+                <span class="stats-detail-value slow-color" id="slow-energy-detail">0.0 kWh</span>
+              </div>
+              <div class="stats-detail-row">
+                <span class="stats-detail-label">费用</span>
+                <span class="stats-detail-value slow-color" id="slow-cost">￥0.00</span>
+              </div>
+              <div class="stats-detail-row">
+                <span class="stats-detail-label">均价</span>
+                <span class="stats-detail-value slow-color" id="slow-avg-price">￥0.00/kWh</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    <!-- 4. 设置页 -->
+    <div id="settings" class="page setting">
+      <div class="page-header">
+        <h1>设置</h1>
+      </div>
+      <div class="settings-container">
+        <div class="settings-section">
+          <h3 class="settings-section-title">数据概览</h3>
+          <div class="data-info-card" id="data-info-card">
+            <div class="data-info-stats" id="data-info">
+              <div class="data-info-item">
+                <div class="label">记录数</div>
+                <div class="value">--</div>
+              </div>
+              <div class="data-info-item">
+                <div class="label">总电量</div>
+                <div class="value">-- kWh</div>
+              </div>
+              <div class="data-info-item">
+                <div class="label">总花费</div>
+                <div class="value">--</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 数据管理 -->
+        <div class="settings-section">
+          <h3 class="settings-section-title">数据管理</h3>
+          <div class="settings-card">
+            <div class="settings-item" style="padding: 0;">
+              <input type="text" id="server-url-input" placeholder="备份服务器地址"
+                     style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; box-sizing: border-box;">
+            </div>
+            <div class="data-setting-btn" id="export-btn">
+              <div class="setting-name"><span class="iconfont icon-business-icon-ali-clould"></span>导出数据</div>
+              <span class="setting-hint">备份到服务器</span>
+            </div>
+            <div class="data-setting-btn" id="backup-list-btn">
+              <div class="setting-name"><span class="iconfont icon-message-reply-template"></span>备份记录</div>
+              <span class="setting-hint">查看 / 恢复历史备份</span>
+            </div>
+            <div class="data-setting-btn" id="import-btn">
+              <div class="setting-name"><span class="iconfont icon-document-conversion"></span>恢复备份</div>
+              <span class="setting-hint">从 .json 文件恢复</span>
+            </div>
+            <div class="data-setting-btn danger" id="clear-data-btn">
+              <div class="setting-name"><span class="iconfont icon-delete"></span>清空所有数据</div>
+              <span class="setting-hint">不可恢复，请先备份</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- AI配置 -->
+        <div class="settings-section">
+          <h3 class="settings-section-title">AI识别配置</h3>
+          <div class="settings-card">
+            <div class="settings-input-group">
+              <label class="settings-label">Base URL</label>
+              <input type="text" id="ai-base-url" class="settings-input" placeholder="https://api.xiaomimimo.com/v1">
+            </div>
+            <div class="settings-input-group">
+              <label class="settings-label">API Key</label>
+              <input type="password" id="ai-api-key" class="settings-input" placeholder="sk-...">
+            </div>
+            <div class="settings-input-group">
+              <label class="settings-label">模型名称</label>
+              <input type="text" id="ai-model" class="settings-input" placeholder="留空则使用默认模型">
+            </div>
+            <button type="button" id="save-ai-config-btn" class="settings-save-btn">保存配置</button>
+          </div>
+        </div>
+
+        <input type="file" id="import-file-input" accept="application/json,.json,.txt" style="display: none;">
+      </div>
+    </div>
+  </div>
+
+  <!-- 底部Tab导航 -->
+  <div class="bottom-tab">
+    <div class="tab-item active" data-page="add-record">
+      <i class="iconfont icon-home"></i>
+      <span>首页</span>
+    </div>
+    <div class="tab-item" data-page="view-records">
+      <i class="iconfont icon-message-reply-template"></i>
+      <span>记录</span>
+    </div>
+    <div class="tab-item" data-page="statistics">
+      <i class="iconfont icon-hangyebaogao"></i>
+      <span>统计</span>
+    </div>
+    <div class="tab-item" data-page="settings">
+      <i class="iconfont icon-settings"></i>
+      <span>设置</span>
+    </div>
+  </div>
+
+  <!-- 弹窗组件 -->
+  <div id="modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modal-title">提示</h3>
+        <button type="button" class="btn-close" id="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p id="modal-message"></p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-cancel" id="modal-cancel-btn">取消</button>
+        <button type="button" class="btn-confirm" id="modal-confirm">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 编辑记录弹窗 -->
+  <div id="edit-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>编辑记录</h3>
+        <button type="button" class="btn-close" id="edit-modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="edit-record-form">
+          <input type="hidden" id="edit-record-id">
+          <div class="form-group">
+            <label>开始时间</label>
+            <div class="time-input-group">
+              <input type="datetime-local" id="edit-start-time" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>结束时间</label>
+            <div class="time-input-group">
+              <input type="datetime-local" id="edit-end-time" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>充电站名称</label>
+            <input type="text" id="edit-station-name" name="stationName" required>
+            <div id="edit-station-suggestions" class="suggestions-list"></div>
+          </div>
+          <div class="form-group">
+            <label>充电类型</label>
+            <button type="button" id="edit-charge-type-btn" class="charge-type-btn fast-charge"
+              data-value="fast">直流快充 （DC）</button>
+          </div>
+          <div class="form-group">
+            <label>充电量 (kWh)</label>
+            <input type="number" id="edit-charge-amount" name="chargeAmount" step="0.01" min="0" required>
+          </div>
+          <div class="form-group">
+            <label>最终价格 (元)</label>
+            <input type="number" id="edit-final-price" name="finalPrice" step="0.01" min="0" required>
+          </div>
+          <div class="form-group">
+            <label>优惠金额 (元)</label>
+            <input type="number" id="edit-discount-amount" name="discountAmount" step="0.01" min="0">
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-cancel" id="edit-modal-cancel-btn">取消</button>
+        <button class="btn-confirm" id="edit-modal-save-btn">保存修改</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 自定义时间选择弹窗 -->
+  <div id="custom-time-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>自定义时间选择</h3>
+        <button type="button" class="btn-close" id="custom-time-close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>开始日期</label>
+          <input type="date" id="custom-start-time" required>
+        </div>
+        <div class="form-group">
+          <label>结束日期</label>
+          <input type="date" id="custom-end-time" required>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-cancel" id="custom-time-cancel-btn">取消</button>
+        <button class="btn-confirm" id="custom-time-query-btn">查询数据</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 记录页面日期筛选弹窗 -->
+  <div id="record-time-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>自定义时间选择</h3>
+        <button type="button" class="btn-close" id="record-time-close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>开始日期</label>
+          <input type="date" id="record-start-date" required>
+        </div>
+        <div class="form-group">
+          <label>结束日期</label>
+          <input type="date" id="record-end-date" required>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-cancel" id="record-time-cancel-btn">取消</button>
+        <button class="btn-confirm" id="record-time-query-btn">查询数据</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 备份记录弹窗 -->
+  <div id="backup-list-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>备份记录</h3>
+        <button type="button" class="btn-close" id="backup-list-close-btn">&times;</button>
+      </div>
+      <div class="modal-body" id="backup-list-body" style="max-height: 60vh; overflow-y: auto;">
+        <div class="empty-state">加载中...</div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-cancel" id="backup-list-close-btn2">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 长按操作蒙版和选项卡 -->
+  <div id="mask" class="mask"></div>
+  <div id="action-sheet" class="action-sheet">
+    <div class="action-item" id="action-edit-btn">编辑</div>
+    <div class="action-item delete" id="action-delete-btn">删除</div>
+    <div class="action-item" id="action-cancel-btn">取消</div>
+  </div>
+
+
+  <script src="./js/utils.js"></script>
+  <script src="./js/data.js"></script>
+  <script src="./js/ui.js"></script>
+  <script src="./js/ai.js"></script>
+  <script src="./js/app.js"></script>
+  <script>
+    // 注册Service Worker
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(registration => {
+            console.log('Service Worker registered with scope:', registration.scope);
+          })
+          .catch(error => {
+            console.log('Service Worker registration failed:', error);
+          });
+      });
+    }
+  </script>
+</body>
+
+</html>
