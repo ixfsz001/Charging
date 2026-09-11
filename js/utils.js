@@ -49,6 +49,20 @@ function calculateDuration(startTime, endTime) {
     return `${hours}小时${minutes}分钟`;
 }
 
+// 计算单次充电的平均功率（kW = kWh / h）
+function calculateAveragePower(chargeAmount, startTime, endTime) {
+    const energy = Number(chargeAmount);
+    const start = new Date(startTime).getTime();
+    const end = new Date(endTime).getTime();
+    const durationHours = (end - start) / (1000 * 60 * 60);
+
+    if (!Number.isFinite(energy) || energy < 0 || !Number.isFinite(durationHours) || durationHours <= 0) {
+        return 0;
+    }
+
+    return energy / durationHours;
+}
+
 // 格式化时长（毫秒转可读字符串）
 function formatDuration(milliseconds) {
     if (!milliseconds || milliseconds < 0) return '0分钟';
@@ -260,6 +274,7 @@ if (typeof window !== 'undefined') {
         formatDateTime,
         formatTime,
         calculateDuration,
+        calculateAveragePower,
         formatDuration,
         formatDateShort,
         formatDate,

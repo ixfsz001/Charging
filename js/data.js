@@ -19,6 +19,43 @@ const DataManager = {
     _selectedTimeRange: { range: 'week' },
     _selectedRecordDateRange: null,
 
+    // 统一校验并规范化外部数据，避免导入或旧版缓存中的异常字段影响统计结果
+    normalizeRecord(record) {
+        if (!record || typeof record !== 'object') return null;
+
+        const startTime = new Date(record.startTime);
+        const endTime = new Date(record.endTime);
+        const chargeAmount = Number(record.chargeAmount);
+        const finalPrice = Number(record.finalPrice);
+        const discountAmount = record.discountAmount === undefined || record.discountAmount === ''
+            ? 0
+            : Number(record.discountAmount);
+        const stationName = typeof record.stationName === 'string' ? record.stationName.trim() : '';
+
+        if (!record.id || !stationName || !['fast', 'slow'].includes(record.chargeType)
+            || !Number.isFinite(startTime.getTime()) || !Number.isFinite(endTime.getTime())
+            || endTime <= startTime || !Number.isFinite(chargeAmount) || chargeAmount <= 0
+            || !Number.isFinite(finalPrice) || finalPrice < 0
+            || !Number.isFinite(discountAmount) || discountAmount < 0) {
+            return null;
+        }
+
+        return {
+            ...record,
+            id: String(record.id),
+            stationName,
+            chargeAmount,
+            finalPrice,
+            discountAmount
+        };
+    },
+
+    normalizeRecords(records) {
+        return Array.isArray(records)
+            ? records.map(record => this.normalizeRecord(record)).filter(Boolean)
+            : [];
+    },
+
     // 获取所有记录
     getRecords() {
         return this._records;
@@ -55,7 +92,7 @@ const DataManager = {
             const recordsData = localStorage.getItem(STORAGE_KEYS.RECORDS);
             const timeRangeData = localStorage.getItem(STORAGE_KEYS.TIME_RANGE);
 
-            this._records = recordsData ? JSON.parse(recordsData) : [];
+            this._records = this.normalizeRecords(recordsData ? JSON.parse(recordsData) : []);
 
             // 加载用户选择的时间范围
             if (timeRangeData) {
@@ -160,8 +197,9 @@ const DataManager = {
 
         filtered = filtered.filter(record => {
             const recordStart = new Date(record.startTime);
-            const recordEnd = new Date(record.endTime);
-            return recordStart >= startDate && recordEnd <= endDate;
+            return selectedRange.range === 'custom'
+                ? recordStart >= startDate && recordStart <= endDate
+                : recordStart >= startDate && recordStart < endDate;
         });
 
         return filtered;
@@ -183,10 +221,12 @@ const DataManager = {
         const slowRecords = records.filter(r => r.chargeType === 'slow');
         const slowEnergy = slowRecords.reduce((sum, r) => sum + r.chargeAmount, 0);
         const slowAmount = slowRecords.reduce((sum, r) => sum + r.finalPrice, 0);
+        const slowDuration = slowRecords.reduce((sum, r) => sum + (new Date(r.endTime) - new Date(r.startTime)), 0);
         const slowStats = {
             count: slowRecords.length,
             energy: slowEnergy,
             amount: slowAmount,
+            duration: slowDuration,
             avgPrice: slowRecords.length > 0 ? slowAmount / slowEnergy : 0
         };
 
@@ -194,10 +234,12 @@ const DataManager = {
         const fastRecords = records.filter(r => r.chargeType === 'fast');
         const fastEnergy = fastRecords.reduce((sum, r) => sum + r.chargeAmount, 0);
         const fastAmount = fastRecords.reduce((sum, r) => sum + r.finalPrice, 0);
+        const fastDuration = fastRecords.reduce((sum, r) => sum + (new Date(r.endTime) - new Date(r.startTime)), 0);
         const fastStats = {
             count: fastRecords.length,
             energy: fastEnergy,
             amount: fastAmount,
+            duration: fastDuration,
             avgPrice: fastRecords.length > 0 ? fastAmount / fastEnergy : 0
         };
 
@@ -217,6 +259,18 @@ const DataManager = {
     addRecord(record) {
         this._records.unshift(record);
         this.saveData();
+    },
+
+    // 按业务字段查找重复记录，兼容等价但格式不同的时间字符串
+    findDuplicateRecord(record) {
+        const startTime = new Date(record.startTime).getTime();
+        const endTime = new Date(record.endTime).getTime();
+        return this._records.find(existing =>
+            new Date(existing.startTime).getTime() === startTime &&
+            new Date(existing.endTime).getTime() === endTime &&
+            Number(existing.chargeAmount) === Number(record.chargeAmount) &&
+            Number(existing.finalPrice) === Number(record.finalPrice)
+        ) || null;
     },
 
     // 更新记录
@@ -273,32 +327,16 @@ const DataManager = {
             const data = JSON.parse(jsonString);
 
             // 支持两种格式：带version字段的和不带的
-            if (data.records && Array.isArray(data.records)) {
-                // 验证数据结构
-                const isValid = data.records.every(record =>
-                    record.id &&
-                    record.startTime &&
-                    record.endTime &&
-                    record.stationName &&
-                    record.chargeType &&
-                    typeof record.chargeAmount === 'number' &&
-                    typeof record.finalPrice === 'number'
-                );
-
-                if (!isValid) {
+            const importedRecords = Array.isArray(data?.records) ? data.records : Array.isArray(data) ? data : null;
+            if (importedRecords) {
+                const normalizedRecords = this.normalizeRecords(importedRecords);
+                if (normalizedRecords.length !== importedRecords.length) {
                     return { success: false, message: '数据格式无效' };
                 }
 
-                this._records = data.records;
+                this._records = normalizedRecords;
                 this.saveData();
-                return { success: true, count: data.records.length };
-            }
-
-            // 兼容旧格式（直接是 {records: [...]}）
-            if (Array.isArray(data)) {
-                this._records = data;
-                this.saveData();
-                return { success: true, count: data.length };
+                return { success: true, count: normalizedRecords.length };
             }
 
             return { success: false, message: '无法识别的数据格式' };
@@ -345,4 +383,8 @@ const DataManager = {
 if (typeof window !== 'undefined') {
     window.DataManager = DataManager;
     window.STORAGE_KEYS = STORAGE_KEYS;
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = DataManager;
 }

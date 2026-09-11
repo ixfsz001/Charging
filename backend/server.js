@@ -70,7 +70,7 @@ const server = http.createServer((req, res) => {
 
                 // 生成下载链接
                 const host = req.headers.host; // 例如 192.168.110.36:3000
-                const downloadUrl = `http://${host}/api/download/${fileName}`;
+                const downloadUrl = `http://${host}/api/download/${encodeURIComponent(fileName)}?uid=${encodeURIComponent(userId)}`;
 
                 console.log(`备份成功: ${fileName}`);
 

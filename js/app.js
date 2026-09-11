@@ -63,11 +63,13 @@ const App = {
             // 移除所有active状态
             document.querySelectorAll('.time-btn').forEach(btn => {
                 btn.classList.remove('active');
+                btn.setAttribute('aria-pressed', 'false');
             });
             // 设置对应的按钮为active
             const targetBtn = document.querySelector(`[data-range="${savedRange.range}"]`);
             if (targetBtn) {
                 targetBtn.classList.add('active');
+                targetBtn.setAttribute('aria-pressed', 'true');
             }
         }
     },
@@ -158,9 +160,21 @@ const App = {
             recognizeBtn.innerHTML = '<span class="iconfont icon-flashlight-auto"></span><span>智能识别中...</span>';
 
             // 调用AI识别
-            await AIRecognizer.recognizeAndFill(file);
+            const result = await AIRecognizer.recognizeAndFill(file);
+            const missingFields = [
+                ['stationName', '充电站'],
+                ['chargeType', '充电类型'],
+                ['startTime', '开始时间'],
+                ['endTime', '结束时间'],
+                ['chargeAmount', '充电量'],
+                ['finalPrice', '支付金额']
+            ].filter(([key]) => !result[key]).map(([, label]) => label);
 
-            UI.showToast('已识别并填充', 3000, 'success');
+            if (missingFields.length) {
+                UI.showToast(`已填充识别结果，请核对：${missingFields.join('、')}未识别`, 5000, 'warning');
+            } else {
+                UI.showToast('已识别并填充，请核对后保存', 3000, 'success');
+            }
 
         } catch (error) {
             console.error('AI识别失败:', error);
@@ -183,6 +197,12 @@ const App = {
                 e.stopPropagation();
                 const pageId = item.dataset.page;
                 UI.switchPage(pageId);
+            });
+            item.addEventListener('dblclick', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+                window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
             });
         });
 
@@ -214,11 +234,10 @@ const App = {
             });
         });
 
-        // 自定义时间选择按钮点击事件
-        const customTimeBtn = document.querySelector('[data-range="custom"]');
-        if (customTimeBtn) {
-            customTimeBtn.addEventListener('click', () => this.openCustomTimeModal());
-        }
+        // 高级统计：充电站排行维度切换
+        document.querySelectorAll('.ranking-tab').forEach(button => {
+            button.addEventListener('click', () => UI.renderStationRanking(button.dataset.ranking));
+        });
 
         // 充电站名称自动提示
         this.initStationSuggestions('station-name', 'station-suggestions');
@@ -332,6 +351,10 @@ const App = {
         if (recordTimeQueryBtn) {
             recordTimeQueryBtn.addEventListener('click', () => this.queryRecordTime());
         }
+
+        document.querySelectorAll('[data-record-range]').forEach(button => {
+            button.addEventListener('click', () => this.selectRecordQuickRange(button.dataset.recordRange));
+        });
 
         // 长按操作按钮
         const mask = document.getElementById('mask');
@@ -565,16 +588,11 @@ const App = {
             discountAmount: parseFloat(formData.discountAmount || '0')
         };
 
-        // 检查是否存在重复记录（时间、充电量、金额完全相同）
-        const isDuplicate = DataManager.getRecords().some(r =>
-            r.startTime === record.startTime &&
-            r.endTime === record.endTime &&
-            r.chargeAmount === record.chargeAmount &&
-            r.finalPrice === record.finalPrice
-        );
-
-        if (isDuplicate) {
-            UI.showToast('该充电记录已存在，无需重复添加', 3000, 'warning');
+        // 检查是否存在重复记录，并把用户带到已存在的记录处
+        const duplicateRecord = DataManager.findDuplicateRecord(record);
+        if (duplicateRecord) {
+            UI.revealRecord(duplicateRecord.id);
+            UI.showToast('该充电记录已存在', 3000, 'warning');
             return;
         }
 
@@ -624,15 +642,18 @@ const App = {
 
     // 选择时间范围
     selectTimeRange(range) {
-        document.querySelectorAll('.time-btn').forEach(btn => {
-            btn.classList.remove('active');
-        });
-        document.querySelector(`[data-range="${range}"]`).classList.add('active');
-
         if (range === 'custom') {
             this.openCustomTimeModal();
             return;
         }
+
+        document.querySelectorAll('.time-btn').forEach(btn => {
+            btn.classList.remove('active');
+            btn.setAttribute('aria-pressed', 'false');
+        });
+        const selectedButton = document.querySelector(`[data-range="${range}"]`);
+        selectedButton.classList.add('active');
+        selectedButton.setAttribute('aria-pressed', 'true');
 
         const dateRange = AppUtils.getDateRangeByType(range);
         if (!dateRange) return;
@@ -655,8 +676,8 @@ const App = {
         if (!record) return;
 
         document.getElementById('edit-record-id').value = record.id;
-        document.getElementById('edit-start-time').value = new Date(record.startTime).toISOString().slice(0, 16);
-        document.getElementById('edit-end-time').value = new Date(record.endTime).toISOString().slice(0, 16);
+        document.getElementById('edit-start-time').value = AppUtils.formatDateTime(new Date(record.startTime));
+        document.getElementById('edit-end-time').value = AppUtils.formatDateTime(new Date(record.endTime));
 
         const editChargeTypeBtn = document.getElementById('edit-charge-type-btn');
         if (record.chargeType === 'fast') {
@@ -754,19 +775,21 @@ const App = {
 
         const jsonStr = DataManager.exportData();
         const fileName = `charging_backup_${new Date().toISOString().slice(0, 10)}.json`;
+        const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8' });
 
-        console.log('准备导出，数据长度:', jsonStr.length);
-
-        // 优先通过服务器备份
-        this._backupToServer(jsonStr, fileName);
+        // 已配置服务器时进行局域网备份；否则直接导出本地 JSON 文件。
+        if (this._getServerUrl()) {
+            this._backupToServer(jsonStr, fileName, blob);
+        } else {
+            this._fallbackDownload(blob, fileName);
+        }
     },
 
     // 上传到服务器备份
-    _backupToServer(content, fileName) {
+    _backupToServer(content, fileName, fallbackBlob) {
         const SERVER_URL = this._getServerUrl();
         if (!SERVER_URL) {
-            UI.hideLoading();
-            UI.showToast('请先填写备份服务器地址', 3000, 'warning');
+            this._fallbackDownload(fallbackBlob, fileName);
             return;
         }
 
@@ -777,42 +800,44 @@ const App = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ content: content, fileName: fileName })
         })
-        .then(res => res.json())
-        .then(data => {
-            UI.hideLoading();
-            if (data.success) {
+            .then(res => res.json())
+            .then(data => {
                 UI.hideLoading();
+                if (data.success) {
+                    UI.hideLoading();
 
-                // 弹出系统分享面板，让用户选择如何打开链接
-                if (window.plus && plus.share) {
-                    plus.share.sendWithSystem({
-                        type: 'text',
-                        content: data.url,
-                        title: '充电记录备份下载链接'
-                    }, () => {
-                        console.log('分享成功');
-                    }, (e) => {
-                        console.error('分享取消或失败:', e);
-                        // 用户取消分享，显示链接
-                        UI.showModal('备份成功',
+                    // 弹出系统分享面板，让用户选择如何打开链接
+                    if (window.plus && plus.share) {
+                        plus.share.sendWithSystem({
+                            type: 'text',
+                            content: data.url,
+                            title: '充电记录备份下载链接'
+                        }, () => {
+                            console.log('分享成功');
+                        }, (e) => {
+                            console.error('分享取消或失败:', e);
+                            // 用户取消分享，显示链接
+                            UI.showModal('备份成功',
+                                '下载链接：\n\n' + data.url,
+                                null);
+                        });
+                    } else {
+                        // 浏览器环境，直接显示链接
+                        UI.showModal('备份成功 ✅',
                             '下载链接：\n\n' + data.url,
                             null);
-                    });
+                    }
                 } else {
-                    // 浏览器环境，直接显示链接
-                    UI.showModal('备份成功 ✅',
-                        '下载链接：\n\n' + data.url,
-                        null);
+                    this._fallbackDownload(fallbackBlob, fileName, false);
+                    UI.showToast('服务器备份失败，已改为下载本地备份文件', 4000, 'warning');
                 }
-            } else {
-                UI.showToast('备份失败: ' + (data.message || '未知错误'), 3000, 'error');
-            }
-        })
-        .catch(e => {
-            UI.hideLoading();
-            console.error('服务器备份失败:', e);
-            UI.showToast('无法连接服务器，请确认电脑端服务已启动', 4000, 'error');
-        });
+            })
+            .catch(e => {
+                UI.hideLoading();
+                console.error('服务器备份失败:', e);
+                this._fallbackDownload(fallbackBlob, fileName, false);
+                UI.showToast('服务器备份失败，已改为下载本地备份文件', 4000, 'warning');
+            });
     },
 
     // 显示备份列表
@@ -918,24 +943,24 @@ const App = {
             fetch(SERVER_URL + '/api/backups/' + encodeURIComponent(fileName) + '?uid=' + encodeURIComponent(uid), {
                 method: 'DELETE'
             })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    UI.showToast('已删除', 3000, 'success');
-                    this.showBackupList(); // 刷新列表
-                } else {
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        UI.showToast('已删除', 3000, 'success');
+                        this.showBackupList(); // 刷新列表
+                    } else {
+                        UI.showToast('删除失败', 3000, 'error');
+                    }
+                })
+                .catch(e => {
+                    console.error('删除失败:', e);
                     UI.showToast('删除失败', 3000, 'error');
-                }
-            })
-            .catch(e => {
-                console.error('删除失败:', e);
-                UI.showToast('删除失败', 3000, 'error');
-            });
+                });
         });
     },
 
     // 下载方式（回退方案）
-    _fallbackDownload(blob, fileName) {
+    _fallbackDownload(blob, fileName, showSuccessMessage = true) {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -949,7 +974,9 @@ const App = {
             URL.revokeObjectURL(url);
         }, 100);
 
-        UI.showToast('导出成功，请查看下载文件夹', 4000, 'success');
+        if (showSuccessMessage) {
+            UI.showToast('导出成功，请查看下载文件夹', 4000, 'success');
+        }
     },
 
     // 导入数据
@@ -1121,8 +1148,11 @@ const App = {
 
         document.querySelectorAll('.time-btn').forEach(btn => {
             btn.classList.remove('active');
+            btn.setAttribute('aria-pressed', 'false');
         });
-        document.querySelector('[data-range="custom"]').classList.add('active');
+        const customButton = document.querySelector('[data-range="custom"]');
+        customButton.classList.add('active');
+        customButton.setAttribute('aria-pressed', 'true');
 
         DataManager.saveSelectedTimeRange();
 
@@ -1147,6 +1177,27 @@ const App = {
 
         document.getElementById('record-start-date').value = formatDateInput(oneWeekAgo);
         document.getElementById('record-end-date').value = formatDateInput(now);
+        this.updateRecordQuickRangeState(null);
+    },
+
+    selectRecordQuickRange(range) {
+        const dateRange = AppUtils.getDateRangeByType(range);
+        if (!dateRange) return;
+
+        const inclusiveEndDate = new Date(dateRange.endDate);
+        inclusiveEndDate.setDate(inclusiveEndDate.getDate() - 1);
+
+        document.getElementById('record-start-date').value = AppUtils.formatDateTime(dateRange.startDate).slice(0, 10);
+        document.getElementById('record-end-date').value = AppUtils.formatDateTime(inclusiveEndDate).slice(0, 10);
+        this.updateRecordQuickRangeState(range);
+    },
+
+    updateRecordQuickRangeState(activeRange) {
+        document.querySelectorAll('[data-record-range]').forEach(button => {
+            const isActive = button.dataset.recordRange === activeRange;
+            button.classList.toggle('active', isActive);
+            button.setAttribute('aria-pressed', String(isActive));
+        });
     },
 
     closeRecordTimeModal(event) {

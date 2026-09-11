@@ -2,14 +2,14 @@
  * Service Worker - 离线缓存支持
  */
 
-const CACHE_NAME = 'charging-app-v1';
+const CACHE_NAME = 'charging-app-v12';
 const STATIC_ASSETS = [
     '/',
     '/index.html',
     '/css/main.css',
     '/js/utils.js',
     '/js/data.js',
-    '/js/api.js',
+    '/js/analytics.js',
     '/js/ui.js',
     '/js/app.js',
     '/img/LOGO.png',

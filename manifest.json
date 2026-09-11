@@ -3,8 +3,8 @@
     "id" : "H5A764D5B",
     "name" : "充电助手",
     "version" : {
-        "name" : "1.0",
-        "code" : 100
+        "name" : "1.1",
+        "code" : 101
     },
     "description" : "新能源汽车充电数据记录统计APP",
     "icons" : {
